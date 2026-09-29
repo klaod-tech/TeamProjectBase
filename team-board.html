@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>팀 프로젝트 보드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
+<style>
+@font-face{font-family:"HamchoromBatang";src:local("함초롬바탕"),local("HCR Batang"),local("HCRBatang");font-weight:400}
+@font-face{font-family:"HamchoromBatang";src:local("함초롬바탕 Bold"),local("HCR Batang Bold"),local("HCRBatang-Bold");font-weight:700}
+:root{
+  --bg:#FFFFFF; --surface:#FFFFFF; --ink:#1E2230; --muted:#7A8091; --line:#E4E7EC; --soft:#F5F6F8;
+  --accent:#3D5AFE;
+  --n-todo:#FFE27A; --n-analysis:#D8CCF6; --n-dev:#A3D5F7; --n-test:#FFB9A3; --n-blocked:#CFD4DC; --n-done:#B7E7C4;
+  --note-ink:#23242B; --shadow:rgba(30,34,48,.22);
+  --font:"HamchoromBatang","함초롬바탕","HCR Batang","Gowun Batang","AppleMyungjo","Batang",serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.55}
+button,input,textarea{font-family:var(--font)}
+button{font-size:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;display:flex;align-items:center;gap:12px;
+  padding:12px 24px;background:var(--bg);border-bottom:1px solid var(--line)}
+.title{flex:1;min-width:0;font-size:19px;font-weight:700;color:var(--ink);background:transparent;border:0;border-radius:6px;padding:6px 8px;margin-left:-8px}
+.title:hover:not(:disabled){background:var(--soft)}
+.title:disabled{opacity:1}
+.people{display:flex;align-items:center}
+.avatar{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;color:#fff;
+  border:2px solid var(--bg);margin-left:-8px;background:var(--c,#888);overflow:hidden;flex:none}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.people .count{margin-left:8px;font-size:13px;color:var(--muted);white-space:nowrap}
+.auth{flex:none;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 12px;font-size:14px;white-space:nowrap}
+.auth:hover{background:var(--soft)}
+.auth.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+.auth[hidden]{display:none}
+
+.search{display:flex;align-items:center;gap:12px;margin:16px 24px 0}
+.search input{width:min(360px,100%);border:1px solid var(--line);border-radius:10px;padding:9px 14px 9px 36px;font-size:15px;color:var(--ink);background:var(--soft) no-repeat 12px center/16px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237A8091' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-4-4'/%3E%3C/svg%3E")}
+.search input:focus{background-color:#fff;outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
+.search span{font-size:13px;color:var(--muted)}
+.status{margin:10px 24px 0;font-size:13px;color:var(--muted)}
+.status:empty{display:none}
+
+.board-wrap{overflow-x:auto;padding:12px 12px 48px}
+.board{position:relative;display:grid;grid-template-columns:repeat(6,minmax(210px,1fr));gap:20px;padding:12px 12px 0;min-width:min-content}
+.col{display:flex;flex-direction:column;min-width:0}
+.col h2{margin:0 0 4px;font-size:24px;font-weight:700;display:flex;align-items:baseline;gap:8px}
+.col h2 .n{font-size:14px;font-weight:400;color:var(--muted)}
+.col .ko{margin:0 0 16px;font-size:14px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.col .ko::before{content:"";width:10px;height:10px;border-radius:2px;background:var(--note)}
+.list{display:flex;flex-direction:column;gap:22px;min-height:210px;padding:6px 4px 10px;border-radius:10px;transition:background .15s}
+.list.over{background:color-mix(in srgb, var(--note) 25%, transparent)}
+.empty{border:2px dashed var(--line);border-radius:6px;min-height:198px}
+
+.note{position:relative;background:var(--note);color:var(--note-ink);min-height:198px;padding:18px 16px 14px;
+  display:flex;flex-direction:column;border-radius:2px;cursor:pointer;
+  box-shadow:0 22px 14px -18px var(--shadow)}
+.note[draggable="true"]{cursor:grab}
+.note.dragging{opacity:.35}
+.note.active{box-shadow:0 0 0 3px var(--ink),0 22px 14px -18px var(--shadow)}
+.note .text,.note textarea{flex:1;font-size:18px;line-height:1.45;text-align:center;color:var(--note-ink)}
+.note .text{white-space:pre-wrap;word-break:break-word;display:flex;align-items:center;justify-content:center;min-height:150px}
+.note textarea{width:100%;min-height:150px;resize:none;border:0;background:transparent;padding:0;outline:none;
+  display:block;padding-top:18px}
+.note[hidden]{display:none}
+.note footer{display:flex;flex-direction:column;gap:6px;margin-top:8px;font-size:12px}
+.note .acts{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.note .by{padding-top:6px;border-top:1px solid rgba(35,36,43,.15);color:rgba(35,36,43,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note .by:empty{display:none}
+.chip{border:0;background:rgba(255,255,255,.55);border-radius:6px;padding:2px 8px;font-size:12px;color:var(--note-ink)}
+.chip.on{background:#fff;box-shadow:inset 0 0 0 1.5px rgba(35,36,43,.55)}
+.chip:disabled{cursor:default}
+.chip[hidden]{display:none}
+.tools{position:absolute;top:-14px;right:8px;display:flex;gap:4px;opacity:0;pointer-events:none;transition:opacity .12s}
+.note:hover .tools,.note:focus-within .tools{opacity:1;pointer-events:auto}
+@media (hover:none){.tools{opacity:1;pointer-events:auto}}
+.tools[hidden]{display:none}
+.tools button{height:30px;min-width:30px;padding:0 9px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:15px;font-size:15px;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+.tools button:disabled{opacity:.3;cursor:default}
+.tools .del{color:#C62828}
+.drop-line{height:4px;border-radius:2px;background:var(--accent);margin:-12px 0}
+
+.add{margin-top:8px;align-self:stretch;border:0;background:transparent;color:var(--muted);text-align:left;padding:10px 8px;border-radius:8px;font-size:15px}
+.add:hover{background:var(--soft);color:var(--ink)}
+.add[hidden]{display:none}
+
+/* chat panel */
+.panel{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);z-index:30;background:var(--bg);border-left:1px solid var(--line);
+  box-shadow:-12px 0 32px rgba(0,0,0,.08);display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  transform:translateX(100%);transition:transform .2s ease;visibility:hidden}
+.panel.open{transform:none;visibility:visible}
+.p-head{display:flex;align-items:center;gap:10px;padding:14px 16px 10px}
+.p-stage{font-size:14px;color:var(--muted);display:flex;align-items:center;gap:6px;flex:1}
+.p-stage::before{content:"";width:10px;height:10px;border-radius:2px;background:var(--note)}
+.p-close{border:0;background:transparent;font-size:22px;line-height:1;width:36px;height:36px;border-radius:8px}
+.p-close:hover{background:var(--soft)}
+.p-note{margin:0 16px;background:var(--note);padding:16px 18px;border-radius:2px}
+.p-note textarea{width:100%;border:0;background:transparent;resize:none;outline:none;font-size:19px;line-height:1.45;color:var(--note-ink);min-height:60px;padding:0}
+.p-note .by{margin-top:6px;font-size:12px;color:rgba(35,36,43,.65)}
+.msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+.msgs .none{margin:auto;color:var(--muted);font-size:14px;text-align:center}
+.msg{display:flex;gap:10px;align-items:flex-start}
+.msg .avatar{margin-left:0;width:28px;height:28px;font-size:12px}
+.msg .body{min-width:0;flex:1}
+.msg .meta{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:baseline}
+.msg .meta b{color:var(--ink);font-size:13px}
+.msg .t{white-space:pre-wrap;word-break:break-word;font-size:15px;margin-top:2px}
+.msg .x{margin-left:auto;border:0;background:transparent;color:var(--muted);font-size:12px;padding:0 4px;visibility:hidden}
+.msg:hover .x{visibility:visible}
+@media (hover:none){.msg .x{visibility:visible}}
+.compose{display:flex;flex-direction:column;gap:10px;padding:12px 16px 16px;border-top:1px solid var(--line)}
+.compose .row{display:flex;gap:8px}
+.compose .pick{flex:none;width:42px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:18px}
+.compose .pick:hover{background:var(--soft)}
+.attach{position:relative;align-self:flex-start}
+.attach img{display:block;max-width:160px;max-height:90px;border-radius:8px;border:1px solid var(--line)}
+.attach button{position:absolute;top:-8px;right:-8px;width:24px;height:24px;border:0;border-radius:50%;background:var(--ink);color:#fff;font-size:14px;line-height:1}
+.attach[hidden]{display:none}
+.msg .m-img{display:block;margin-top:6px;max-width:100%;max-height:240px;border-radius:8px;border:1px solid var(--line);cursor:zoom-in}
+.viewer{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.85);cursor:zoom-out}
+.viewer[hidden]{display:none}
+.viewer img{max-width:100%;max-height:100%;object-fit:contain}
+.compose textarea{flex:1;resize:none;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px;line-height:1.4;max-height:120px;color:var(--ink);background:var(--bg)}
+#send{border:0;border-radius:10px;padding:0 16px;background:var(--ink);color:#fff;font-size:15px}
+#send:disabled{opacity:.35;cursor:default}
+.compose[hidden]{display:none}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;
+  padding:10px 16px;border-radius:10px;font-size:14px;z-index:40;max-width:90vw}
+.toast[hidden]{display:none}
+@media (prefers-reduced-motion: reduce){.panel{transition:none}}
+@media (max-width:640px){.search{margin:12px 12px 0}.top{padding:10px 12px}.board{grid-template-columns:repeat(6,70vw);gap:16px}.board-wrap{scroll-snap-type:x mandatory}.col{scroll-snap-align:start}}
+</style>
+</head>
+<body>
+<header class="top">
+  <input class="title" id="title" value="앱 프로젝트 보드" aria-label="보드 이름" maxlength="60">
+  <div class="people" id="people" aria-label="지금 보고 있는 사람"></div>
+  <button class="auth" id="authBtn" type="button" hidden></button>
+</header>
+<div class="search">
+  <input id="q" type="search" placeholder="메모·대화 찾기" aria-label="메모 찾기" autocomplete="off">
+  <span id="qInfo"></span>
+</div>
+<p class="status" id="status"></p>
+<div class="board-wrap" id="wrap">
+  <main class="board" id="board"></main>
+</div>
+
+<aside class="panel" id="panel" aria-label="메모 대화" aria-hidden="true">
+  <div class="p-head"><span class="p-stage" id="pStage"></span><button class="p-close" id="pClose" type="button" aria-label="닫기">×</button></div>
+  <div class="p-note" id="pNote"><textarea id="pText" rows="3" aria-label="메모 내용" maxlength="500"></textarea><div class="by" id="pBy"></div></div>
+  <div class="msgs" id="msgs" aria-live="polite"></div>
+  <div class="compose" id="compose">
+    <div class="attach" id="attach" hidden><img id="attachImg" alt="첨부할 이미지"><button type="button" id="attachX" aria-label="이미지 빼기">×</button></div>
+    <div class="row">
+      <button type="button" class="pick" id="pick" aria-label="이미지 첨부" title="이미지 첨부 (붙여넣기도 돼요)">🖼</button>
+      <input type="file" id="file" accept="image/*" hidden>
+      <textarea id="msgInput" rows="1" aria-label="메시지" maxlength="1000"></textarea>
+      <button id="send" type="button" disabled>보내기</button>
+    </div>
+  </div>
+</aside>
+
+<div class="viewer" id="viewer" hidden><img id="viewerImg" alt="첨부 이미지 크게 보기"></div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBEnqu1g5B2bc88qT53FLH3twZjVdk8Qcg",
+  authDomain: "team-board-16a75.firebaseapp.com",
+  projectId: "team-board-16a75",
+  storageBucket: "team-board-16a75.firebasestorage.app",
+  messagingSenderId: "437160895376",
+  appId: "1:437160895376:web:ff8f05d8e935e6a9794915"
+};
+const COLS = [
+  {k:'todo',     en:'To Do',       ko:'할 일',  note:'var(--n-todo)'},
+  {k:'analysis', en:'Analysis',    ko:'분석',   note:'var(--n-analysis)'},
+  {k:'progress', en:'Development', ko:'개발',   note:'var(--n-dev)'},
+  {k:'testing',  en:'Test',        ko:'테스트', note:'var(--n-test)'},
+  {k:'blocked',  en:'Blocked',     ko:'막힘',   note:'var(--n-blocked)'},
+  {k:'done',     en:'Done',        ko:'완료',   note:'var(--n-done)'},
+];
+// Cards saved under a column that no longer exists (e.g. the old 'stories') show in To Do.
+function colKey(d){ return COLS.some(c=>c.k===d.col) ? d.col : 'todo'; }
+const PALETTE = ['#3D5AFE','#E53970','#00897B','#F57C00','#7E57C2','#2E7D32','#0277BD','#C2185B','#5D4037'];
+
+let db = null, userCap = null;
+let myId = null, myName = '';
+let canWrite = true;
+let cards = new Map(), drafts = new Map();
+let editingId = null;
+let names = {};
+let peersNow = [];
+let openId = null, msgUnsub = null, msgs = [];
+const localMsgs = new Map();
+
+const $ = s => document.querySelector(s);
+const board = $('#board'), titleEl = $('#title');
+const colEls = {};
+
+function hash(s){ let h=0; for (const ch of String(s)) h=(h*31+ch.charCodeAt(0))|0; return Math.abs(h); }
+function colorFor(id){ return PALETTE[hash(id||'x') % PALETTE.length]; }
+function nameOf(id){ return (id && names[id] && names[id].name) || (id && id===myId && myName) || '팀원'; }
+function me(){ return myId || 'local'; }
+
+let toastTimer;
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.hidden=true,3500); }
+function dbError(e){
+  if (!e) return;
+  if (e.code==='resource-exhausted') toast('오늘 무료 사용량을 다 썼어요. 내일 다시 시도해 주세요.');
+  else if (e.code==='permission-denied') { canWrite=false; applyWritable(); toast('이 보드는 보기 전용이에요.'); }
+  else toast('저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
+}
+
+/* ---------- columns ---------- */
+COLS.forEach(c => {
+  const col = document.createElement('section');
+  col.className='col'; col.style.setProperty('--note', c.note); col.dataset.col=c.k;
+  const h=document.createElement('h2'); h.textContent=c.en;
+  const n=document.createElement('span'); n.className='n'; h.appendChild(n);
+  const ko=document.createElement('p'); ko.className='ko'; ko.textContent=c.ko;
+  const list=document.createElement('div'); list.className='list'; list.dataset.col=c.k;
+  const add=document.createElement('button'); add.className='add'; add.type='button'; add.textContent='+ 메모 추가';
+  add.addEventListener('click', () => newDraft(c.k));
+  col.append(h, ko, list, add); board.appendChild(col);
+  colEls[c.k]={col, list, count:n, add};
+  setupDrop(list, c.k);
+});
+
+/* ---------- data ---------- */
+function all(){ const m=new Map(cards); drafts.forEach((v,k)=>m.set(k,v)); return m; }
+function inCol(k){ return [...all().entries()].filter(([,d])=>colKey(d)===k).sort((a,b)=>(a[1].order??0)-(b[1].order??0)); }
+function maxOrder(k){ const l=inCol(k); return l.length ? (l[l.length-1][1].order??0) : 0; }
+function newId(){ return db ? db.collection('cards').doc().id : 'l'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function colOf(k){ return COLS.find(c=>c.k===k) || COLS[0]; }
+
+function newDraft(k){
+  if (!canWrite) return;
+  const id=newId();
+  drafts.set(id, {text:'', col:k, order:maxOrder(k)+1, author:myId, likes:{}, msgCount:0, createdAt:Date.now()});
+  editingId=id; render();
+  const ta=document.querySelector(`.note[data-id="${id}"] textarea`); ta && ta.focus();
+}
+
+async function saveCard(id, patch){
+  const isDraft=drafts.has(id);
+  const base=isDraft ? drafts.get(id) : cards.get(id);
+  if (!base) return;
+  const next={...base, ...patch, updatedAt:Date.now()};
+  if (isDraft) drafts.delete(id);
+  cards.set(id, next); render(); if (openId===id) fillPanelNote();
+  if (!db) return;
+  try {
+    if (isDraft) await db.collection('cards').doc(id).set(next);
+    else await db.collection('cards').doc(id).update({...patch, updatedAt:next.updatedAt});
+  } catch(e){ dbError(e); }
+}
+
+async function removeCard(id){
+  if (openId===id) closePanel();
+  if (drafts.has(id)) { drafts.delete(id); render(); return; }
+  cards.delete(id); render();
+  if (!db) { localMsgs.delete(id); return; }
+  try {
+    await db.collection('cards').doc(id).delete();
+    const snap = await db.collection(`cards/${id}/messages`).get();
+    for (const d of snap.docs) await db.doc(`cards/${id}/messages/${d.id}`).delete();
+  } catch(e){ dbError(e); }
+}
+
+/* ---------- notes ---------- */
+const noteEls=new Map();
+
+function makeNote(id){
+  const el=document.createElement('article');
+  el.className='note'; el.dataset.id=id; el.tabIndex=0;
+  el.innerHTML=`<div class="tools">
+      <button type="button" data-act="left" aria-label="이전 단계로">‹</button>
+      <button type="button" data-act="right" aria-label="다음 단계로">›</button>
+      <button type="button" class="del" data-act="del" aria-label="삭제">×</button>
+    </div>
+    <div class="text"></div>
+    <footer><div class="acts"><button type="button" class="chip talk" aria-label="대화 수">💬 <span></span></button><button type="button" class="chip like" aria-label="좋아요">👍 <span></span></button></div><div class="by"></div></footer>`;
+  el.querySelector('.tools').addEventListener('click', e => {
+    e.stopPropagation();
+    const b=e.target.closest('button'); if (!b) return;
+    const d=all().get(id); if (!d) return;
+    const i=COLS.findIndex(c=>c.k===colKey(d));
+    if (b.dataset.act==='del') { if (drafts.has(id) || confirm('이 메모와 대화를 삭제할까요?')) removeCard(id); return; }
+    const j=i+(b.dataset.act==='left'?-1:1); if (j<0||j>=COLS.length) return;
+    const k=COLS[j].k;
+    if (drafts.has(id)) { const dd=drafts.get(id); dd.col=k; dd.order=maxOrder(k)+1; render(); return; }
+    saveCard(id, {col:k, order:maxOrder(k)+1});
+  });
+  el.querySelector('.like').addEventListener('click', e => {
+    e.stopPropagation();
+    const d=cards.get(id); if (!d || !canWrite) return;
+    const likes={...(d.likes||{})};
+    if (likes[me()]) delete likes[me()]; else likes[me()]=true;
+    saveCard(id, {likes});
+  });
+  el.addEventListener('click', e => { if (drafts.has(id) || e.target.closest('textarea')) return; openPanel(id); });
+  el.addEventListener('keydown', e => { if (e.target===el && e.key==='Enter') { e.preventDefault(); if (!drafts.has(id)) openPanel(id); } });
+  el.addEventListener('dragstart', e => { if (editingId===id) { e.preventDefault(); return; } e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed='move'; el.classList.add('dragging'); });
+  el.addEventListener('dragend', () => { el.classList.remove('dragging'); clearDropLine(); });
+  return el;
+}
+
+function startEditing(el, id){
+  const box=el.querySelector('.text');
+  if (el.querySelector('textarea')) return;
+  const ta=document.createElement('textarea');
+  ta.maxLength=500; ta.setAttribute('aria-label','메모 내용');
+  box.replaceWith(ta); el.draggable=false;
+  let done=false;
+  const finish = save => {
+    if (done) return; done=true; editingId=null;
+    const v=ta.value.trim(); ta.replaceWith(box);
+    if (!save || !v) { drafts.delete(id); render(); return; }
+    saveCard(id, {text:v});
+  };
+  ta.addEventListener('blur', () => finish(true));
+  ta.addEventListener('keydown', e => {
+    if (e.key==='Escape') { e.preventDefault(); finish(false); }
+    if (e.key==='Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ta.blur(); }
+  });
+}
+
+function render(){
+  const data=all();
+  let totalShown=0;
+  for (const [id, el] of noteEls) if (!data.has(id)) { el.remove(); noteEls.delete(id); }
+  COLS.forEach((c, ci) => {
+    const {list, count, add}=colEls[c.k];
+    const items=inCol(c.k);
+    const shown=items.filter(([id,d])=>!drafts.has(id) && matchesId(id,d)).length;
+    const total=items.filter(([id])=>!drafts.has(id)).length;
+    count.textContent=query ? `${shown}/${total}` : (total||'');
+    totalShown+=shown;
+    add.hidden=!canWrite;
+    let empty=list.querySelector('.empty');
+    if (!items.length) { if (!empty) { empty=document.createElement('div'); empty.className='empty'; list.appendChild(empty); } }
+    else if (empty) empty.remove();
+    items.forEach(([id, d], idx) => {
+      let el=noteEls.get(id);
+      if (!el) { el=makeNote(id); noteEls.set(id, el); }
+      if (el.parentNode!==list || list.children[idx]!==el) list.insertBefore(el, list.children[idx]||null);
+      const draft=drafts.has(id);
+      el.draggable=canWrite && editingId!==id && !query;
+      el.classList.toggle('active', openId===id);
+      el.querySelector('[data-act="left"]').disabled=ci===0;
+      el.querySelector('[data-act="right"]').disabled=ci===COLS.length-1;
+      el.querySelector('.tools').hidden=!canWrite;
+      if (editingId===id) startEditing(el, id);
+      else if (!el.querySelector('textarea')) el.querySelector('.text').textContent=d.text||'';
+      el.hidden=!draft && !matchesId(id, d);
+      const likes=Object.keys(d.likes||{});
+      const lb=el.querySelector('.like');
+      lb.querySelector('span').textContent=likes.length||'';
+      lb.classList.toggle('on', likes.includes(me()));
+      lb.disabled=!canWrite; lb.hidden=draft;
+      const tb=el.querySelector('.talk');
+      tb.querySelector('span').textContent=d.msgCount||0;
+      tb.hidden=draft;
+      el.querySelector('.by').textContent=draft ? '' : `담당자: ${d.author ? nameOf(d.author) : '없음'}${d.createdAt ? ' | '+fmtTime(d.createdAt) : ''}`;
+    });
+  });
+  $('#qInfo').textContent=query ? (totalShown ? `${totalShown}개 찾음` : '찾는 메모가 없어요') : '';
+  resolveNames();
+}
+
+/* ---------- search ---------- */
+const qEl=$('#q');
+let query='';
+const msgIndex=new Map(); // card id -> lowercase joined messages (loaded on demand)
+function matches(d){
+  if (!query) return true;
+  if ((d.text||'').toLowerCase().includes(query)) return true;
+  return false;
+}
+function matchesId(id, d){ return matches(d) || (query && (msgIndex.get(id)||'').includes(query)); }
+async function loadMsgIndex(){
+  if (!db) { localMsgs.forEach((l,id)=>msgIndex.set(id, l.map(m=>m.text||'').join('\n').toLowerCase())); return; }
+  const ids=[...cards.keys()].filter(id=>!msgIndex.has(id) && cards.get(id).msgCount);
+  for (const id of ids) {
+    try { const snap=await db.collection(`cards/${id}/messages`).get(); msgIndex.set(id, snap.docs.map(d=>d.data().text||'').join('\n').toLowerCase()); } catch(e){}
+  }
+}
+let qTimer;
+qEl.addEventListener('input', () => {
+  query=qEl.value.trim().toLowerCase();
+  render();
+  clearTimeout(qTimer);
+  if (query) qTimer=setTimeout(async()=>{ await loadMsgIndex(); render(); }, 250);
+});
+qEl.addEventListener('keydown', e => { if (e.key==='Escape') { qEl.value=''; query=''; render(); } });
+
+/* ---------- drag & drop ---------- */
+const dropLine=document.createElement('div'); dropLine.className='drop-line';
+function clearDropLine(){ dropLine.remove(); document.querySelectorAll('.list.over').forEach(l=>l.classList.remove('over')); }
+function dropIndex(list, y){
+  const notes=[...list.querySelectorAll('.note:not(.dragging)')];
+  for (let i=0;i<notes.length;i++){ const r=notes[i].getBoundingClientRect(); if (y<r.top+r.height/2) return {i, notes}; }
+  return {i:notes.length, notes};
+}
+function setupDrop(list, k){
+  list.addEventListener('dragover', e => {
+    if (!canWrite) return;
+    e.preventDefault(); e.dataTransfer.dropEffect='move'; list.classList.add('over');
+    const {i, notes}=dropIndex(list, e.clientY);
+    if (notes[i]) list.insertBefore(dropLine, notes[i]); else list.appendChild(dropLine);
+  });
+  list.addEventListener('dragleave', e => { if (!list.contains(e.relatedTarget)) { list.classList.remove('over'); dropLine.remove(); } });
+  list.addEventListener('drop', e => {
+    e.preventDefault();
+    const id=e.dataTransfer.getData('text/plain');
+    const {i}=dropIndex(list, e.clientY); clearDropLine();
+    const items=inCol(k).filter(([x])=>x!==id);
+    const prev=items[i-1]?.[1].order, next=items[i]?.[1].order;
+    let order;
+    if (prev==null && next==null) order=1;
+    else if (prev==null) order=next-1;
+    else if (next==null) order=prev+1;
+    else order=(prev+next)/2;
+    if (drafts.has(id)) { const d=drafts.get(id); d.col=k; d.order=order; render(); return; }
+    if (cards.has(id)) saveCard(id, {col:k, order});
+  });
+}
+
+/* ---------- chat panel ---------- */
+const panel=$('#panel'), pText=$('#pText'), msgsEl=$('#msgs'), input=$('#msgInput'), sendBtn=$('#send');
+
+function fillPanelNote(){
+  const d=cards.get(openId); if (!d) return;
+  const c=colOf(d.col);
+  panel.style.setProperty('--note', c.note);
+  $('#pStage').textContent=`${c.en} · ${c.ko}`;
+  if (document.activeElement!==pText) pText.value=d.text||'';
+  pText.readOnly=!canWrite;
+  $('#pBy').textContent=d.author ? `${nameOf(d.author)} 작성` : '';
+}
+
+function openPanel(id){
+  if (openId===id) { input.focus(); return; }
+  if (msgUnsub) { msgUnsub(); msgUnsub=null; }
+  openId=id; msgs=[]; setAttached(null);
+  fillPanelNote(); renderMsgs();
+  panel.classList.add('open'); panel.setAttribute('aria-hidden','false');
+  $('#compose').hidden=!canWrite;
+  render();
+  if (db) {
+    msgUnsub=db.collection(`cards/${id}/messages`).orderBy('at').limit(500).onSnapshot(snap => {
+      msgs=snap.docs.map(d=>({id:d.id, ...d.data()}));
+      msgIndex.set(id, msgs.map(m=>m.text||'').join('\n').toLowerCase());
+      renderMsgs();
+      const d=cards.get(id);
+      if (canWrite && d && !snap.metadata.fromCache && (d.msgCount||0)!==snap.size) saveCard(id, {msgCount:snap.size});
+    }, () => {});
+  } else { msgs=localMsgs.get(id)||[]; renderMsgs(); }
+  setTimeout(()=>input.focus(), 50);
+}
+function closePanel(){
+  if (msgUnsub) { msgUnsub(); msgUnsub=null; }
+  openId=null; panel.classList.remove('open'); panel.setAttribute('aria-hidden','true'); render();
+}
+$('#pClose').addEventListener('click', closePanel);
+document.addEventListener('keydown', e => {
+  if (e.key!=='Escape') return;
+  if (!viewer.hidden) { viewer.hidden=true; return; }
+  if (openId && document.activeElement!==pText) closePanel();
+});
+
+pText.addEventListener('blur', () => {
+  const d=cards.get(openId); if (!d || !canWrite) return;
+  const v=pText.value.trim();
+  if (!v) { pText.value=d.text||''; return; }
+  if (v!==d.text) saveCard(openId, {text:v});
+});
+
+function fmtTime(t){
+  const d=new Date(t), now=new Date();
+  const hm=d.toLocaleTimeString('ko-KR',{hour:'numeric',minute:'2-digit'});
+  return d.toDateString()===now.toDateString() ? hm : `${d.getMonth()+1}/${d.getDate()} ${hm}`;
+}
+function renderMsgs(){
+  const atBottom=msgsEl.scrollHeight-msgsEl.scrollTop-msgsEl.clientHeight<60;
+  const stick=atBottom || msgs[msgs.length-1]?.author===me();
+  msgsEl.textContent='';
+  if (!msgs.length) { const n=document.createElement('p'); n.className='none'; n.textContent='첫 이야기를 남겨 보세요'; msgsEl.appendChild(n); return; }
+  msgs.forEach(m => {
+    const row=document.createElement('div'); row.className='msg';
+    const a=document.createElement('div'); a.className='avatar'; a.style.setProperty('--c', colorFor(m.author||'x'));
+    const nm=nameOf(m.author); a.textContent=nm.charAt(0);
+    const av=m.author && names[m.author] && names[m.author].avatar;
+    if (av) { a.textContent=''; const img=document.createElement('img'); img.src=av; img.alt=''; a.appendChild(img); }
+    const body=document.createElement('div'); body.className='body';
+    const meta=document.createElement('div'); meta.className='meta';
+    const b=document.createElement('b'); b.textContent=nm;
+    const tm=document.createElement('span'); tm.textContent=m.at ? fmtTime(m.at) : '';
+    meta.append(b, tm);
+    if (m.author && m.author===me()) {
+      const x=document.createElement('button'); x.className='x'; x.type='button'; x.textContent='삭제';
+      x.addEventListener('click', () => deleteMsg(m.id)); meta.appendChild(x);
+    }
+    const t=document.createElement('div'); t.className='t'; t.textContent=m.text||'';
+    body.append(meta, t);
+    if (typeof m.img==='string' && m.img.startsWith('data:image/')) {
+      const im=document.createElement('img'); im.className='m-img'; im.src=m.img; im.alt='첨부 이미지';
+      im.addEventListener('click', () => { viewerImg.src=m.img; viewer.hidden=false; });
+      im.addEventListener('load', () => { if (stick) msgsEl.scrollTop=msgsEl.scrollHeight; });
+      body.appendChild(im);
+    }
+    row.append(a, body); msgsEl.appendChild(row);
+  });
+  if (stick) msgsEl.scrollTop=msgsEl.scrollHeight;
+}
+
+/* ---------- image attachments ----------
+   Images are shrunk to a JPEG data URL and stored in the message itself,
+   so no separate file storage (and no paid plan) is needed. */
+const viewer=$('#viewer'), viewerImg=$('#viewerImg');
+const attachEl=$('#attach'), attachImg=$('#attachImg'), fileEl=$('#file');
+const MAX_IMG=400000; // characters of data URL, well under Firestore's 1 MiB document cap
+let attached=null;
+viewer.addEventListener('click', () => { viewer.hidden=true; });
+
+function updateSend(){ sendBtn.disabled=!input.value.trim() && !attached; }
+function setAttached(url){ attached=url; attachEl.hidden=!url; attachImg.src=url||''; updateSend(); }
+
+async function shrinkImage(file){
+  const img=await new Promise((res, rej) => {
+    const u=URL.createObjectURL(file), i=new Image();
+    i.onload=() => { URL.revokeObjectURL(u); res(i); };
+    i.onerror=() => { URL.revokeObjectURL(u); rej(new Error('decode')); };
+    i.src=u;
+  });
+  for (const [max, q] of [[1280,.75],[1024,.7],[800,.65],[640,.6]]) {
+    const s=Math.min(1, max/Math.max(img.naturalWidth, img.naturalHeight));
+    const c=document.createElement('canvas');
+    c.width=Math.round(img.naturalWidth*s); c.height=Math.round(img.naturalHeight*s);
+    const x=c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height);
+    const url=c.toDataURL('image/jpeg', q);
+    if (url.length<=MAX_IMG) return url;
+  }
+  throw new Error('too big');
+}
+async function attachFile(file){
+  if (!file || !file.type.startsWith('image/')) { toast('이미지 파일만 올릴 수 있어요.'); return; }
+  try { setAttached(await shrinkImage(file)); input.focus(); }
+  catch(e){ toast('이미지를 불러오지 못했어요. 다른 이미지로 해 주세요.'); }
+}
+$('#pick').addEventListener('click', () => fileEl.click());
+fileEl.addEventListener('change', () => { if (fileEl.files[0]) attachFile(fileEl.files[0]); fileEl.value=''; });
+$('#attachX').addEventListener('click', () => setAttached(null));
+// A copied image arrives either as a file, or (copied from a web page) only as HTML with an <img>.
+function imageFileFrom(dt){
+  for (const it of dt?.items||[]) if (it.kind==='file' && it.type.startsWith('image/')) { const f=it.getAsFile(); if (f) return f; }
+  return [...(dt?.files||[])].find(f => f.type.startsWith('image/')) || null;
+}
+function imageSrcFrom(dt){
+  const html=dt?.getData('text/html');
+  if (!html) return null;
+  const img=new DOMParser().parseFromString(html, 'text/html').querySelector('img[src]');
+  return img ? img.src : null;
+}
+async function attachFromSrc(src){
+  try {
+    const b=await (await fetch(src)).blob();
+    if (b.type.startsWith('image/')) return attachFile(b);
+  } catch(e){}
+  toast('이 이미지는 바로 붙여넣을 수 없어요. 이미지를 저장한 뒤 🖼 버튼으로 올려 주세요.');
+}
+function takeImage(e){
+  if (!openId || !canWrite) return;
+  const f=imageFileFrom(e.clipboardData||e.dataTransfer);
+  if (f) { e.preventDefault(); attachFile(f); return; }
+  const src=imageSrcFrom(e.clipboardData||e.dataTransfer);
+  if (src) { e.preventDefault(); attachFromSrc(src); }
+}
+document.addEventListener('paste', takeImage);
+panel.addEventListener('dragover', e => { if (openId && canWrite && [...(e.dataTransfer?.types||[])].some(t => t==='Files' || t==='text/html')) e.preventDefault(); });
+panel.addEventListener('drop', takeImage);
+
+input.addEventListener('input', () => {
+  updateSend();
+  input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,120)+'px';
+});
+input.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendMsg(); } });
+sendBtn.addEventListener('click', sendMsg);
+
+async function sendMsg(){
+  const text=input.value.trim(), img=attached;
+  if ((!text && !img) || !openId || !canWrite) return;
+  const id=openId;
+  input.value=''; input.style.height='auto'; setAttached(null);
+  const m={text, author:me(), at:Date.now()};
+  if (img) m.img=img;
+  if (!db) {
+    const l=localMsgs.get(id)||[]; l.push({id:'m'+Date.now(), ...m}); localMsgs.set(id,l); msgs=l; renderMsgs();
+    saveCard(id, {msgCount:l.length}); return;
+  }
+  try {
+    await db.collection(`cards/${id}/messages`).add(m);
+    const d=cards.get(id); if (d) saveCard(id, {msgCount:(d.msgCount||0)+1});
+  } catch(e){ input.value=text; setAttached(img); dbError(e); }
+}
+async function deleteMsg(mid){
+  if (!openId) return;
+  const id=openId;
+  if (!db) { const l=(localMsgs.get(id)||[]).filter(m=>m.id!==mid); localMsgs.set(id,l); msgs=l; renderMsgs(); saveCard(id,{msgCount:l.length}); return; }
+  try { await db.doc(`cards/${id}/messages/${mid}`).delete(); } catch(e){ dbError(e); }
+}
+
+/* ---------- title ---------- */
+let titleSaved=titleEl.value;
+titleEl.addEventListener('change', async () => {
+  const v=titleEl.value.trim()||'앱 프로젝트 보드';
+  titleEl.value=v; document.title=v;
+  if (v===titleSaved) return; titleSaved=v;
+  if (db) try { await db.doc('board/meta').set({title:v}); } catch(e){ dbError(e); }
+});
+titleEl.addEventListener('keydown', e => { if (e.key==='Enter') titleEl.blur(); });
+
+/* ---------- names ---------- */
+let nameBusy=false, nameAgain=false;
+async function resolveNames(){
+  if (!userCap) return;
+  if (nameBusy) { nameAgain=true; return; }
+  const ids=new Set();
+  all().forEach(d => d.author && ids.add(d.author));
+  peersNow.forEach(p => p.by && ids.add(p.by));
+  msgs.forEach(m => m.author && ids.add(m.author));
+  const missing=[...ids].filter(id => id!=='local' && !names[id]);
+  if (!missing.length) return;
+  nameBusy=true;
+  try {
+    const ps=await userCap.profiles(missing);
+    missing.forEach(id => { const p=ps&&ps[id]; names[id]={name:(p&&p.name)||'', avatar:(p&&(p.avatarUrl||p.avatar))||null}; });
+    render(); renderPeers(); if (openId) { fillPanelNote(); renderMsgs(); }
+  } catch(e){}
+  nameBusy=false;
+  if (nameAgain) { nameAgain=false; resolveNames(); }
+}
+
+/* ---------- presence ---------- */
+function renderPeers(){
+  const box=$('#people'); box.textContent='';
+  const seen=new Set(), list=[];
+  peersNow.forEach(p => { const key=p.by||p.peer; if (!seen.has(key)) { seen.add(key); list.push(p); } });
+  list.slice(0,6).forEach(p => {
+    const a=document.createElement('div'); a.className='avatar';
+    a.style.setProperty('--c', colorFor(p.by||p.peer));
+    const nm=p.isMe ? (myName||'나') : nameOf(p.by);
+    a.title=p.isMe ? `${nm} (나)` : nm;
+    const av=p.by && names[p.by] && names[p.by].avatar;
+    if (av) { const img=document.createElement('img'); img.src=av; img.alt=''; a.appendChild(img); } else a.textContent=(nm||'?').charAt(0);
+    box.appendChild(a);
+  });
+  const c=document.createElement('span'); c.className='count';
+  c.textContent=list.length>1 ? `${list.length}명` : '';
+  box.appendChild(c);
+}
+
+// Each signed-in viewer touches presence/{uid} once a minute while the tab is visible;
+// anyone seen within PRESENCE_TTL counts as "here now".
+const PRESENCE_TTL=150000;
+let presenceDocs=[];
+function beat(){
+  if (!db || !myId || document.visibilityState!=='visible') return;
+  db.doc(`presence/${myId}`).set({at:Date.now()}).catch(()=>{});
+}
+function refreshPeers(){
+  const now=Date.now();
+  peersNow=presenceDocs.filter(p => p.id!==myId && now-p.at<PRESENCE_TTL).map(p => ({peer:p.id, by:p.id, isMe:false}));
+  if (myId) peersNow.unshift({peer:myId, by:myId, isMe:true});
+  renderPeers(); resolveNames();
+}
+
+function applyWritable(){ titleEl.disabled=!canWrite; $('#compose').hidden=!canWrite; render(); }
+
+function seedLocal(){
+  [['todo','와이어프레임 정리'],['analysis','경쟁 앱 분석'],['progress','회원가입 화면 개발'],['testing','결제 흐름 테스트'],['blocked','API 키 발급 대기'],['done','요구사항 회의']]
+    .forEach(([col,text],i)=>cards.set('seed'+i,{col,text,order:i,author:null,likes:{},msgCount:0}));
+}
+
+/* ---------- boot ---------- */
+render();
+const authBtn=$('#authBtn'), statusEl=$('#status');
+
+// Names and avatars live in users/{uid}, written by each person when they sign in.
+const profileStore = {
+  async profiles(ids){
+    const out={};
+    await Promise.all(ids.map(async id => {
+      try { const s=await db.doc(`users/${id}`).get(); if (s.exists) out[id]={name:s.data().name||'', avatarUrl:s.data().avatar||null}; } catch(e){}
+    }));
+    return out;
+  }
+};
+
+function signIn(){
+  const auth=firebase.auth(), provider=new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(e => {
+    if (e.code==='auth/popup-blocked') auth.signInWithRedirect(provider);
+    else if (e.code==='auth/unauthorized-domain' || e.code==='auth/operation-not-supported-in-this-environment') toast('이 주소에서는 로그인할 수 없어요. 배포된 주소로 접속해 주세요.');
+    else if (e.code!=='auth/popup-closed-by-user' && e.code!=='auth/cancelled-popup-request') toast('로그인하지 못했어요. 다시 시도해 주세요.');
+  });
+}
+
+function showSignedOut(){
+  canWrite=false;
+  statusEl.textContent='보드를 보려면 Google 계정으로 로그인해 주세요.';
+  authBtn.textContent='Google로 로그인'; authBtn.classList.add('primary'); authBtn.hidden=false;
+  authBtn.onclick=signIn;
+  applyWritable();
+}
+
+function start(u){
+  db=firebase.firestore(); userCap=profileStore;
+  myId=u.uid; myName=u.displayName||'';
+  names[myId]={name:myName, avatar:u.photoURL||null};
+  canWrite=true; statusEl.textContent='';
+  authBtn.textContent='로그아웃'; authBtn.classList.remove('primary'); authBtn.hidden=false;
+  authBtn.onclick=() => { db.doc(`presence/${myId}`).delete().catch(()=>{}).finally(() => firebase.auth().signOut().then(() => location.reload())); };
+  db.doc(`users/${myId}`).set({name:myName, avatar:u.photoURL||null}).catch(()=>{});
+
+  db.doc('board/meta').onSnapshot(s => {
+    if (s.exists) { const t=s.data().title; if (t && document.activeElement!==titleEl) { titleEl.value=t; titleSaved=t; document.title=t; } }
+  }, () => {});
+  db.collection('cards').onSnapshot(snap => {
+    const next=new Map(); snap.docs.forEach(doc=>next.set(doc.id, doc.data()));
+    cards=next; render();
+    if (openId) { if (!cards.has(openId)) closePanel(); else fillPanelNote(); }
+  }, e => {
+    canWrite=false; applyWritable();
+    statusEl.textContent=e.code==='permission-denied' ? '이 보드를 볼 권한이 없어요. 보드 관리자에게 초대를 요청해 주세요.' : '보드를 불러오지 못했어요. 새로고침해 주세요.';
+  });
+  applyWritable();
+
+  db.collection('presence').onSnapshot(snap => {
+    presenceDocs=snap.docs.map(d => ({id:d.id, at:d.data().at||0}));
+    refreshPeers();
+  }, () => {});
+  beat(); refreshPeers();
+  setInterval(() => { beat(); refreshPeers(); }, 60000);
+  document.addEventListener('visibilitychange', beat);
+  window.addEventListener('pagehide', () => { db.doc(`presence/${myId}`).delete().catch(()=>{}); });
+}
+
+if (typeof firebase==='undefined') {
+  statusEl.textContent='공유 저장소에 연결되지 않아, 지금 적는 메모는 이 화면에만 보여요.'; seedLocal(); applyWritable();
+} else {
+  firebase.initializeApp(firebaseConfig);
+  let started=false;
+  firebase.auth().onAuthStateChanged(u => {
+    if (u && !started) { started=true; start(u); }
+    else if (!u) showSignedOut();
+  });
+}
+window.addEventListener('resize', () => renderPeers());
+</script>
+</body>
+</html>

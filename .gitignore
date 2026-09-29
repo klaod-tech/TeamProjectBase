@@ -1,0 +1,7 @@
+# Firebase CLI 캐시
+.firebase/
+*.log
+node_modules/
+
+# Claude Artifact용 원본 백업 (Firebase 버전과 무관)
+team-board.claude-backup.html
