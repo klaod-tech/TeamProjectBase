@@ -1,6 +1,6 @@
 # TeamProjectBase
 
-팀 프로젝트용 칸반 보드. 메모 카드, 카드별 댓글(이미지 첨부 가능), 좋아요, 접속 중인 팀원 표시를 지원한다.
+팀 프로젝트용 칸반 보드. 메모 카드, 우선순위(1=가장 중요, 위로 정렬)와 우선순위 필터, 카드별 댓글(이미지 첨부·붙여넣기 가능), 좋아요, 접속 중인 팀원 표시를 지원한다.
 페이지는 HTML 파일 하나이고, 데이터와 로그인은 Firebase(Firestore + Google 로그인)가 맡는다.
 
 칸: To Do → Analysis → Development → Test → Blocked → Done

@@ -33,6 +33,11 @@ button{font-size:inherit;color:inherit;cursor:pointer}
 .title:hover:not(:disabled){background:var(--soft)}
 .title:disabled{opacity:1}
 .people{display:flex;align-items:center}
+.pfilter{display:flex;align-items:center;flex:none;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.pfilter button{border:0;border-left:1px solid var(--line);background:var(--bg);padding:6px 10px;font-size:14px;min-width:34px}
+.pfilter button:first-child{border-left:0}
+.pfilter button:hover{background:var(--soft)}
+.pfilter button.on{background:var(--ink);color:#fff}
 .avatar{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;color:#fff;
   border:2px solid var(--bg);margin-left:-8px;background:var(--c,#888);overflow:hidden;flex:none}
 .avatar img{width:100%;height:100%;object-fit:cover}
@@ -73,6 +78,14 @@ button{font-size:inherit;color:inherit;cursor:pointer}
 .note[hidden]{display:none}
 .note footer{display:flex;flex-direction:column;gap:6px;margin-top:8px;font-size:12px}
 .note .acts{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.prio{margin-right:auto;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.55);font-size:12px;color:var(--note-ink)}
+.prio[hidden]{display:none}
+.prio-pick{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:8px;font-size:12px;color:rgba(35,36,43,.72)}
+.prio-pick span{margin-right:4px}
+.prio-pick button{width:26px;height:26px;padding:0;border:1px solid rgba(35,36,43,.25);border-radius:50%;background:rgba(255,255,255,.6);color:var(--note-ink);font-size:13px}
+.prio-pick button.on{background:var(--note-ink);border-color:var(--note-ink);color:#fff}
+.prio-pick button:disabled{opacity:.5;cursor:default}
+.p-note .prio-pick{justify-content:flex-start;margin-top:10px}
 .note .by{padding-top:6px;border-top:1px solid rgba(35,36,43,.15);color:rgba(35,36,43,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .note .by:empty{display:none}
 .chip{border:0;background:rgba(255,255,255,.55);border-radius:6px;padding:2px 8px;font-size:12px;color:var(--note-ink)}
@@ -138,12 +151,15 @@ button{font-size:inherit;color:inherit;cursor:pointer}
   padding:10px 16px;border-radius:10px;font-size:14px;z-index:40;max-width:90vw}
 .toast[hidden]{display:none}
 @media (prefers-reduced-motion: reduce){.panel{transition:none}}
-@media (max-width:640px){.search{margin:12px 12px 0}.top{padding:10px 12px}.board{grid-template-columns:repeat(6,70vw);gap:16px}.board-wrap{scroll-snap-type:x mandatory}.col{scroll-snap-align:start}}
+@media (max-width:640px){.search{margin:12px 12px 0}.top{padding:10px 12px;flex-wrap:wrap}.pfilter{order:3;width:100%}.pfilter button{flex:1}.board{grid-template-columns:repeat(6,70vw);gap:16px}.board-wrap{scroll-snap-type:x mandatory}.col{scroll-snap-align:start}}
 </style>
 </head>
 <body>
 <header class="top">
   <input class="title" id="title" value="앱 프로젝트 보드" aria-label="보드 이름" maxlength="60">
+  <div class="pfilter" id="pfilter" role="group" aria-label="우선순위로 보기">
+    <button type="button" data-p="all">전체</button><button type="button" data-p="1" title="가장 중요">1</button><button type="button" data-p="2">2</button><button type="button" data-p="3">3</button><button type="button" data-p="4">4</button><button type="button" data-p="5" title="가장 덜 중요">5</button>
+  </div>
   <div class="people" id="people" aria-label="지금 보고 있는 사람"></div>
   <button class="auth" id="authBtn" type="button" hidden></button>
 </header>
@@ -158,7 +174,7 @@ button{font-size:inherit;color:inherit;cursor:pointer}
 
 <aside class="panel" id="panel" aria-label="메모 대화" aria-hidden="true">
   <div class="p-head"><span class="p-stage" id="pStage"></span><button class="p-close" id="pClose" type="button" aria-label="닫기">×</button></div>
-  <div class="p-note" id="pNote"><textarea id="pText" rows="3" aria-label="메모 내용" maxlength="500"></textarea><div class="by" id="pBy"></div></div>
+  <div class="p-note" id="pNote"><textarea id="pText" rows="3" aria-label="메모 내용" maxlength="500"></textarea><div id="pPrio"></div><div class="by" id="pBy"></div></div>
   <div class="msgs" id="msgs" aria-live="polite"></div>
   <div class="compose" id="compose">
     <div class="attach" id="attach" hidden><img id="attachImg" alt="첨부할 이미지"><button type="button" id="attachX" aria-label="이미지 빼기">×</button></div>
@@ -243,7 +259,26 @@ COLS.forEach(c => {
 
 /* ---------- data ---------- */
 function all(){ const m=new Map(cards); drafts.forEach((v,k)=>m.set(k,v)); return m; }
-function inCol(k){ return [...all().entries()].filter(([,d])=>colKey(d)===k).sort((a,b)=>(a[1].order??0)-(b[1].order??0)); }
+// Priority 1 (most important, top) to 5 (least, bottom); cards saved before priorities existed count as 3.
+function prioOf(d){ const p=Math.round(+d.priority); return p>=1 && p<=5 ? p : 3; }
+function inCol(k){ return [...all().entries()].filter(([,d])=>colKey(d)===k).sort((a,b)=>(prioOf(a[1])-prioOf(b[1])) || ((a[1].order??0)-(b[1].order??0))); }
+
+// Five 1–5 buttons; onPick(p) runs when one is chosen.
+function makePrioPicker(current, onPick){
+  const box=document.createElement('div'); box.className='prio-pick'; box.setAttribute('role','radiogroup'); box.setAttribute('aria-label','우선순위');
+  const lab=document.createElement('span'); lab.textContent='우선순위'; box.appendChild(lab);
+  for (let p=1; p<=5; p++) {
+    const b=document.createElement('button'); b.type='button'; b.textContent=p; b.dataset.p=p;
+    b.setAttribute('role','radio'); b.setAttribute('aria-label',`우선순위 ${p}`);
+    if (p===1) b.title='가장 중요'; else if (p===5) b.title='가장 덜 중요';
+    b.addEventListener('mousedown', e => e.preventDefault()); // keep focus in the text box
+    b.addEventListener('click', e => { e.stopPropagation(); setPrioPicker(box, p); onPick(p); });
+    box.appendChild(b);
+  }
+  setPrioPicker(box, current);
+  return box;
+}
+function setPrioPicker(box, p){ box.querySelectorAll('button').forEach(b => { const on=+b.dataset.p===p; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); }); }
 function maxOrder(k){ const l=inCol(k); return l.length ? (l[l.length-1][1].order??0) : 0; }
 function newId(){ return db ? db.collection('cards').doc().id : 'l'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function colOf(k){ return COLS.find(c=>c.k===k) || COLS[0]; }
@@ -251,9 +286,19 @@ function colOf(k){ return COLS.find(c=>c.k===k) || COLS[0]; }
 function newDraft(k){
   if (!canWrite) return;
   const id=newId();
-  drafts.set(id, {text:'', col:k, order:maxOrder(k)+1, author:myId, likes:{}, msgCount:0, createdAt:Date.now()});
+  drafts.set(id, {text:'', col:k, order:maxOrder(k)+1, priority:3, author:myId, likes:{}, msgCount:0, createdAt:Date.now()});
   editingId=id; render();
-  const ta=document.querySelector(`.note[data-id="${id}"] textarea`); ta && ta.focus();
+  const ta=document.querySelector(`.note[data-id="${id}"] textarea`);
+  if (ta) { ta.focus({preventScroll:true}); revealNote(id); }
+}
+
+// Scrolls the board (both directions) so the note is in view; no-op if it already is.
+function revealNote(id){
+  const el=noteEls.get(id); if (!el || el.hidden) return;
+  const r=el.getBoundingClientRect(), top=$('.top').getBoundingClientRect().bottom;
+  if (r.top>=top && r.bottom<=innerHeight && r.left>=0 && r.right<=innerWidth) return;
+  const smooth=!matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.scrollIntoView({block:'center', inline:'nearest', behavior:smooth ? 'smooth' : 'auto'});
 }
 
 async function saveCard(id, patch){
@@ -263,6 +308,8 @@ async function saveCard(id, patch){
   const next={...base, ...patch, updatedAt:Date.now()};
   if (isDraft) drafts.delete(id);
   cards.set(id, next); render(); if (openId===id) fillPanelNote();
+  if (isDraft || 'priority' in patch || 'col' in patch) requestAnimationFrame(() => revealNote(id));
+  if ((isDraft || 'priority' in patch) && prioFilter.size && !prioFilter.has(prioOf(next))) toast(`우선순위 ${prioOf(next)} 메모라 지금 필터에서는 숨겨져요.`);
   if (!db) return;
   try {
     if (isDraft) await db.collection('cards').doc(id).set(next);
@@ -294,7 +341,7 @@ function makeNote(id){
       <button type="button" class="del" data-act="del" aria-label="삭제">×</button>
     </div>
     <div class="text"></div>
-    <footer><div class="acts"><button type="button" class="chip talk" aria-label="대화 수">💬 <span></span></button><button type="button" class="chip like" aria-label="좋아요">👍 <span></span></button></div><div class="by"></div></footer>`;
+    <footer><div class="acts"><span class="prio"></span><button type="button" class="chip talk" aria-label="대화 수">💬 <span></span></button><button type="button" class="chip like" aria-label="좋아요">👍 <span></span></button></div><div class="by"></div></footer>`;
   el.querySelector('.tools').addEventListener('click', e => {
     e.stopPropagation();
     const b=e.target.closest('button'); if (!b) return;
@@ -303,7 +350,7 @@ function makeNote(id){
     if (b.dataset.act==='del') { if (drafts.has(id) || confirm('이 메모와 대화를 삭제할까요?')) removeCard(id); return; }
     const j=i+(b.dataset.act==='left'?-1:1); if (j<0||j>=COLS.length) return;
     const k=COLS[j].k;
-    if (drafts.has(id)) { const dd=drafts.get(id); dd.col=k; dd.order=maxOrder(k)+1; render(); return; }
+    if (drafts.has(id)) { const dd=drafts.get(id); dd.col=k; dd.order=maxOrder(k)+1; render(); revealNote(id); return; }
     saveCard(id, {col:k, order:maxOrder(k)+1});
   });
   el.querySelector('.like').addEventListener('click', e => {
@@ -313,30 +360,58 @@ function makeNote(id){
     if (likes[me()]) delete likes[me()]; else likes[me()]=true;
     saveCard(id, {likes});
   });
-  el.addEventListener('click', e => { if (drafts.has(id) || e.target.closest('textarea')) return; openPanel(id); });
+  // Single click opens the chat panel; double click edits the note in place.
+  let clickTimer=null;
+  el.addEventListener('click', e => {
+    if (drafts.has(id) || editingId===id || e.target.closest('textarea, .prio-pick')) return;
+    clearTimeout(clickTimer);
+    clickTimer=setTimeout(() => openPanel(id), 250);
+  });
+  el.addEventListener('dblclick', e => {
+    clearTimeout(clickTimer);
+    if (!canWrite || drafts.has(id) || editingId===id || e.target.closest('.tools, footer button')) return;
+    if (editingId) document.activeElement?.blur();
+    editingId=id; render();
+    const ta=el.querySelector('textarea'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  });
   el.addEventListener('keydown', e => { if (e.target===el && e.key==='Enter') { e.preventDefault(); if (!drafts.has(id)) openPanel(id); } });
   el.addEventListener('dragstart', e => { if (editingId===id) { e.preventDefault(); return; } e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed='move'; el.classList.add('dragging'); });
   el.addEventListener('dragend', () => { el.classList.remove('dragging'); clearDropLine(); });
   return el;
 }
 
+// Edits a new draft or an existing note in place: text plus priority.
+// Saves when focus leaves the note or on Enter; Escape cancels.
 function startEditing(el, id){
   const box=el.querySelector('.text');
   if (el.querySelector('textarea')) return;
+  const isDraft=drafts.has(id), d=all().get(id)||{};
+  let prio=prioOf(d);
   const ta=document.createElement('textarea');
   ta.maxLength=500; ta.setAttribute('aria-label','메모 내용');
-  box.replaceWith(ta); el.draggable=false;
+  ta.value=isDraft ? '' : (d.text||'');
+  const pick=makePrioPicker(prio, p => { prio=p; });
+  box.replaceWith(ta); ta.after(pick); el.draggable=false;
   let done=false;
+  const onOut = e => { if (!el.contains(e.relatedTarget)) finish(true); };
   const finish = save => {
     if (done) return; done=true; editingId=null;
-    const v=ta.value.trim(); ta.replaceWith(box);
-    if (!save || !v) { drafts.delete(id); render(); return; }
-    saveCard(id, {text:v});
+    el.removeEventListener('focusout', onOut);
+    const v=ta.value.trim(); ta.replaceWith(box); pick.remove();
+    if (isDraft) {
+      if (!save || !v) { drafts.delete(id); render(); return; }
+      saveCard(id, {text:v, priority:prio}); return;
+    }
+    const cur=cards.get(id);
+    const patch={};
+    if (save && cur && v && v!==cur.text) patch.text=v;
+    if (save && cur && prio!==prioOf(cur)) patch.priority=prio;
+    if (Object.keys(patch).length) saveCard(id, patch); else render();
   };
-  ta.addEventListener('blur', () => finish(true));
+  el.addEventListener('focusout', onOut);
   ta.addEventListener('keydown', e => {
-    if (e.key==='Escape') { e.preventDefault(); finish(false); }
-    if (e.key==='Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ta.blur(); }
+    if (e.key==='Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+    if (e.key==='Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); finish(true); }
   });
 }
 
@@ -347,9 +422,9 @@ function render(){
   COLS.forEach((c, ci) => {
     const {list, count, add}=colEls[c.k];
     const items=inCol(c.k);
-    const shown=items.filter(([id,d])=>!drafts.has(id) && matchesId(id,d)).length;
+    const shown=items.filter(([id,d])=>!drafts.has(id) && visible(id,d)).length;
     const total=items.filter(([id])=>!drafts.has(id)).length;
-    count.textContent=query ? `${shown}/${total}` : (total||'');
+    count.textContent=filtering() ? `${shown}/${total}` : (total||'');
     totalShown+=shown;
     add.hidden=!canWrite;
     let empty=list.querySelector('.empty');
@@ -360,14 +435,14 @@ function render(){
       if (!el) { el=makeNote(id); noteEls.set(id, el); }
       if (el.parentNode!==list || list.children[idx]!==el) list.insertBefore(el, list.children[idx]||null);
       const draft=drafts.has(id);
-      el.draggable=canWrite && editingId!==id && !query;
+      el.draggable=canWrite && editingId!==id && !filtering();
       el.classList.toggle('active', openId===id);
       el.querySelector('[data-act="left"]').disabled=ci===0;
       el.querySelector('[data-act="right"]').disabled=ci===COLS.length-1;
       el.querySelector('.tools').hidden=!canWrite;
       if (editingId===id) startEditing(el, id);
       else if (!el.querySelector('textarea')) el.querySelector('.text').textContent=d.text||'';
-      el.hidden=!draft && !matchesId(id, d);
+      el.hidden=!draft && !visible(id, d);
       const likes=Object.keys(d.likes||{});
       const lb=el.querySelector('.like');
       lb.querySelector('span').textContent=likes.length||'';
@@ -376,10 +451,12 @@ function render(){
       const tb=el.querySelector('.talk');
       tb.querySelector('span').textContent=d.msgCount||0;
       tb.hidden=draft;
+      const pb=el.querySelector('.prio'), p=prioOf(d);
+      pb.textContent=`우선순위 ${p}`; pb.dataset.p=p; pb.hidden=draft;
       el.querySelector('.by').textContent=draft ? '' : `담당자: ${d.author ? nameOf(d.author) : '없음'}${d.createdAt ? ' | '+fmtTime(d.createdAt) : ''}`;
     });
   });
-  $('#qInfo').textContent=query ? (totalShown ? `${totalShown}개 찾음` : '찾는 메모가 없어요') : '';
+  $('#qInfo').textContent=filtering() ? (totalShown ? `${totalShown}개 보는 중` : '조건에 맞는 메모가 없어요') : '';
   resolveNames();
 }
 
@@ -393,6 +470,28 @@ function matches(d){
   return false;
 }
 function matchesId(id, d){ return matches(d) || (query && (msgIndex.get(id)||'').includes(query)); }
+
+/* ---------- priority filter ---------- */
+// Empty set = show every priority. Remembered per viewer in this browser.
+let prioFilter=new Set();
+try { prioFilter=new Set((JSON.parse(localStorage.getItem('prioFilter')||'[]')).filter(p=>p>=1&&p<=5)); } catch(e){}
+function filtering(){ return !!query || prioFilter.size>0; }
+function visible(id, d){ return matchesId(id, d) && (!prioFilter.size || prioFilter.has(prioOf(d))); }
+const pfEl=$('#pfilter');
+function renderPrioFilter(){
+  pfEl.querySelectorAll('button').forEach(b => {
+    const on=b.dataset.p==='all' ? !prioFilter.size : prioFilter.has(+b.dataset.p);
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+  });
+}
+pfEl.addEventListener('click', e => {
+  const b=e.target.closest('button'); if (!b) return;
+  if (b.dataset.p==='all') prioFilter.clear();
+  else { const p=+b.dataset.p; prioFilter.has(p) ? prioFilter.delete(p) : prioFilter.add(p); if (prioFilter.size===5) prioFilter.clear(); }
+  try { localStorage.setItem('prioFilter', JSON.stringify([...prioFilter])); } catch(e){}
+  renderPrioFilter(); render();
+});
+renderPrioFilter();
 async function loadMsgIndex(){
   if (!db) { localMsgs.forEach((l,id)=>msgIndex.set(id, l.map(m=>m.text||'').join('\n').toLowerCase())); return; }
   const ids=[...cards.keys()].filter(id=>!msgIndex.has(id) && cards.get(id).msgCount);
@@ -429,8 +528,12 @@ function setupDrop(list, k){
     e.preventDefault();
     const id=e.dataTransfer.getData('text/plain');
     const {i}=dropIndex(list, e.clientY); clearDropLine();
-    const items=inCol(k).filter(([x])=>x!==id);
-    const prev=items[i-1]?.[1].order, next=items[i]?.[1].order;
+    const card=all().get(id); if (!card) return;
+    // A card keeps its priority, so it can only be reordered among cards of the same priority.
+    const p=prioOf(card), items=inCol(k).filter(([x])=>x!==id);
+    const same=items.filter(([,d])=>prioOf(d)===p);
+    const n=items.slice(0, i).filter(([,d])=>prioOf(d)===p).length;
+    const prev=same[n-1]?.[1].order, next=same[n]?.[1].order;
     let order;
     if (prev==null && next==null) order=1;
     else if (prev==null) order=next-1;
@@ -451,8 +554,12 @@ function fillPanelNote(){
   $('#pStage').textContent=`${c.en} · ${c.ko}`;
   if (document.activeElement!==pText) pText.value=d.text||'';
   pText.readOnly=!canWrite;
+  setPrioPicker(pPrio, prioOf(d));
+  pPrio.querySelectorAll('button').forEach(b => { b.disabled=!canWrite; });
   $('#pBy').textContent=d.author ? `${nameOf(d.author)} 작성` : '';
 }
+const pPrio=makePrioPicker(3, p => { const d=cards.get(openId); if (d && canWrite && p!==prioOf(d)) saveCard(openId, {priority:p}); });
+$('#pPrio').replaceWith(pPrio);
 
 function openPanel(id){
   if (openId===id) { input.focus(); return; }
